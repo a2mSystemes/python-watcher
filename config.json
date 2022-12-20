@@ -1,0 +1,12 @@
+{
+    "watch_path": "C:\\Users\\a-mma\\OneDrive\\Desktop\\Resolume-test",
+    "watch_interval": 100,
+    "process_path" : "C:\\Program Files\\Resolume Arena\\",
+    "process_exec_name" : "Arena.exe",
+    "broker" : "192.168.200.40",
+    "broker_port": 1883,
+    "broker_ws_port": 9001,
+    "watchdog_topic" : "ArenaFiles/",
+    "restart_topic" : "ArenaRestart/",
+    "state_topic" : "ArenaState/" 
+}
