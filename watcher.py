@@ -65,16 +65,14 @@ class MyHandler(FileSystemEventHandler):
         print('arena pid : ', self.pid)
 
     def run(self):
-        self.client.subscribe(self.config['restart_topic'])
         self.client.loop_start()
 
     def on_any_event(self, event):
-        self.send_files(event)
+        self.send_files()
 
     def send_files(self, event):
         if (not event.is_directory and event.src_path.endswith('.avc')) or (hasattr(event, 'first_scan')):
-            obj = self.scan_dir()
-            self.client.publish(self.config['watchdog_topic'], json.dumps(obj))
+            self.publish_watchdog()
 
     def scan_dir(self):
         file = []
@@ -87,27 +85,30 @@ class MyHandler(FileSystemEventHandler):
 
     def on_message(self, client, userdata, message):
         pload = json.loads(message.payload.decode('utf-8'))
-        if 'start' in pload:
-            # start Arena if not running and send a scan
-            print('Starting')
-            self.startArena()
-        elif 'restart' in pload:
-            # start Arena if not running with the selected file
-            if 'file' in pload:
-                compo = str(pload['file'])
-                self.startArena(compo)
-            else:
-                self.publish_restart("No file provided", False)
-        elif 'stop' in pload and pload['stop']:
-            if self.arena_is_running():
-                self.kill_arena()
-                self.publish_stop()
-            else:
-                self.publish_stop(False)
-        elif 'alive' in pload and pload['alive']:
-            self.publish_alive()
-        else:
-            print('nothing to do')
+        if 'from' in  pload and pload['from'] != 'whatchdog':
+            if 'start' in pload:
+                # start Arena if not running and send a scan
+                print('Starting')
+                self.startArena()
+                self.publish_start()
+            elif 'restart' in pload:
+                # start Arena if not running with the selected file
+                if 'file' in pload:
+                    compo = str(pload['file'])
+                    self.startArena(compo)
+                    self.publish_restart(compo, False)
+                else:
+                    self.publish_restart("No file provided", False)
+            elif 'stop' in pload and pload['stop']:
+                if self.arena_is_running():
+                    self.kill_arena()
+                    self.publish_stop()
+                else:
+                    self.publish_stop(False)
+            elif 'alive' in pload and pload['alive']:
+                self.publish_alive()
+            elif 'files' in pload:
+                self.publish_watchdog()
 
 
 
@@ -155,6 +156,16 @@ class MyHandler(FileSystemEventHandler):
         return True
         ## check if the process is running
 
+    def publish_watchdog(self):
+        data = {
+                    'from' : 'whatchdog',
+                    'action': 'stop',
+                    'time': datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+                    }
+        
+        data['files'] = self.scan_dir()
+        self.client.publish(self.config['state_topic'], json.dumps(data))
+    
     def publish_stop(self, wasStopped=True, succes=True ):
         data = {
                     'from' : 'whatdog',
@@ -183,6 +194,7 @@ class MyHandler(FileSystemEventHandler):
             data['result'] = 'started successfully'
         else:
             data['result'] = 'already strated'
+        data['files'] = self.scan_dir()
         self.client.publish(self.config['state_topic'], json.dumps(data))
 
     def publish_restart(self, file_or_err=None, succes=True ):
@@ -225,8 +237,9 @@ class MyHandler(FileSystemEventHandler):
 
 
     def on_connect(self, client, userdata, flags, rc):
-        print("CONNECTED")
+        self.client.subscribe(self.config['state_topic'])
         self.publish_connect()
+        print("CONNECTED")
 
     def kill_arena(self):
         os.kill(self.pid, signal.SIGTERM)

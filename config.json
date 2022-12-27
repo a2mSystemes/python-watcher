@@ -6,7 +6,5 @@
     "broker" : "192.168.200.40",
     "broker_port": 1883,
     "broker_ws_port": 9001,
-    "watchdog_topic" : "ArenaFiles/",
-    "restart_topic" : "ArenaRestart/",
     "state_topic" : "ArenaState/" 
 }
