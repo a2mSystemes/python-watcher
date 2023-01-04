@@ -265,7 +265,7 @@ class MyHandler(FileSystemEventHandler):
 
 
 def read_config(config_file='./config.json'):
-    with open('config.json') as config:
+    with open(config_file) as config:
         conf = json.load(config)
         # print('config ')
         # print(conf)
