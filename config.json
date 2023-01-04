@@ -3,7 +3,7 @@
     "watch_interval": 100,
     "process_path" : "C:\\Program Files\\Resolume Arena\\",
     "process_exec_name" : "Arena.exe",
-    "broker" : "192.168.200.40",
+    "broker" : "192.168.10.180",
     "broker_port": 1883,
     "broker_ws_port": 9001,
     "state_topic" : "ArenaState/" 

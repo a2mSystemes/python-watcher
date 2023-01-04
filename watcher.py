@@ -68,24 +68,27 @@ class MyHandler(FileSystemEventHandler):
         self.client.loop_start()
 
     def on_any_event(self, event):
-        self.send_files()
+        self.send_files(event)
 
     def send_files(self, event):
         if (not event.is_directory and event.src_path.endswith('.avc')) or (hasattr(event, 'first_scan')):
             self.publish_watchdog()
 
     def scan_dir(self):
-        file = []
+        files = []
         for f in os.listdir(self.config['watch_path']):
             # filter out everithing without .avc extension and dirs
             if (not os.path.isdir(os.path.join(self.config['watch_path'], f)) and f.endswith('.avc')):
-                file.append(os.path.join(self.config['watch_path'], f))
-        obj = {"files": file}
-        return obj
+                files.append(os.path.join(self.config['watch_path'], f))
+        return files
 
     def on_message(self, client, userdata, message):
-        pload = json.loads(message.payload.decode('utf-8'))
-        if 'from' in  pload and pload['from'] != 'whatchdog':
+        pload = ''
+        try:
+            pload = json.loads(message.payload.decode('utf-8'))
+        except Exception as err:
+            print(err)
+        if 'from' in  pload and pload['from'] != 'watchdog':
             if 'start' in pload:
                 # start Arena if not running and send a scan
                 print('Starting')
@@ -95,11 +98,12 @@ class MyHandler(FileSystemEventHandler):
                 # start Arena if not running with the selected file
                 if 'file' in pload:
                     compo = str(pload['file'])
-                    self.startArena(compo)
-                    self.publish_restart(compo, False)
+                    print("Restarting Arena with " + compo)
+                    self.restartArena(compo)
                 else:
                     self.publish_restart("No file provided", False)
             elif 'stop' in pload and pload['stop']:
+                print("Stopping Arena...")
                 if self.arena_is_running():
                     self.kill_arena()
                     self.publish_stop()
@@ -111,35 +115,34 @@ class MyHandler(FileSystemEventHandler):
                 self.publish_watchdog()
 
 
+    def restartArena(self, compo=None):
+        if not self.compoIsOk(compo):
+            self.publish_restart(compo + " does not exist or are not supported", False)
+            return
+        ## check if the process is running
+        if self.arena_is_running():
+            self.kill_arena()
+            time.sleep(0.5)
+            fullPath = [os.path.join(self.config['process_path'], self.config['process_exec_name']), compo]
+            self.launchProcess(fullPath)
+            #waiting resolume to start empiric value 
+            time.sleep(10)
+            self.publish_restart(compo)
+            return
 
-    def startArena(self, compo=None):
-        # means start
-        if compo is None:
-            if self.arena_is_running():
-                self.publish_start(False)
-                return
-            else:
-                fullPath = [os.path.join(self.config['process_path'], 
-                        self.config['process_exec_name'])]
-                self.launchProcess(fullPath)
-                time.sleep(7)
-                self.publish_start()
-                return
-        # means restart
+    def startArena(self):
+        if self.arena_is_running():
+            self.publish_start(False)
+            return
         else:
-            if not self.compoIsOk(compo):
-                self.publish_restart(compo + " does not exist or are not supported", False)
-                return
-            ## check if the process is running
-            if self.arena_is_running():
-                self.kill_arena()
-                time.sleep(0.5)
-                fullPath = [os.path.join(self.config['process_path'], self.config['process_exec_name']), compo]
-                self.launchProcess(fullPath)
-                #waiting resolume to start empiric value 
-                time.sleep(7)
-                self.publish_restart(compo)
-                return
+            fullPath = [os.path.join(self.config['process_path'], 
+                    self.config['process_exec_name'])]
+            self.launchProcess(fullPath)
+            time.sleep(10)
+            self.publish_start()
+            return
+
+            
 
     def launchProcess(self, args):
             # hack found https://stackoverflow.com/questions/9705652/how-to-hide-stdout-of-subprocess-on-windows
@@ -158,8 +161,8 @@ class MyHandler(FileSystemEventHandler):
 
     def publish_watchdog(self):
         data = {
-                    'from' : 'whatchdog',
-                    'action': 'stop',
+                    'from' : 'watchdog',
+                    'action': 'watchdog',
                     'time': datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
                     }
         
@@ -168,7 +171,7 @@ class MyHandler(FileSystemEventHandler):
     
     def publish_stop(self, wasStopped=True, succes=True ):
         data = {
-                    'from' : 'whatdog',
+                    'from' : 'watchdog',
                     'action': 'stop',
                     'time': datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
                     }
@@ -183,7 +186,7 @@ class MyHandler(FileSystemEventHandler):
 
     def publish_start(self, wasStarted=True, succes=True ):
         data = {
-                    'from' : 'whatdog',
+                    'from' : 'watchdog',
                     'action': 'start',
                     'time': datetime.now().strftime('%Y-%m-%d_%H-%M-%S'),
                     'data': 0
@@ -199,17 +202,19 @@ class MyHandler(FileSystemEventHandler):
 
     def publish_restart(self, file_or_err=None, succes=True ):
         data = {
-                    'from' : 'whatdog',
+                    'from' : 'watchdog',
                     'action': 'restart',
                     'time': datetime.now().strftime('%Y-%m-%d_%H-%M-%S'),
                     'result': 'restarted successfully',
-                    'data': file_or_err
+                    'data': file_or_err,
+                    'files': self.scan_dir()
                     }
         if succes:
             data['done'] = True
         else:
            data['done'] = False 
            data['result'] = 'error'
+        print("sending restart data : " + json.dumps(data))
         self.client.publish(self.config['state_topic'], json.dumps(data))
 
     def publish_connect(self):
@@ -218,7 +223,8 @@ class MyHandler(FileSystemEventHandler):
                     'action': 'connected',
                     'time': datetime.now().strftime('%Y-%m-%d_%H-%M-%S'),
                     'result': 'watchdog listening',
-                    'done': True
+                    'done': True,
+                    'data': self.scan_dir()
                     }
         self.client.publish(self.config['state_topic'], json.dumps(data))
 
@@ -230,7 +236,7 @@ class MyHandler(FileSystemEventHandler):
                     'time': datetime.now().strftime('%Y-%m-%d_%H-%M-%S'),
                     'result': 'watchdog listening',
                     'done': True,
-                    'files': self.scan_dir()['files']
+                    'files': self.scan_dir()
                     }
         data['arenaRunning'] = True if self.pid != -2 else False
         self.client.publish(self.config['state_topic'], json.dumps(data))
