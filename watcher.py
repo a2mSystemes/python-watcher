@@ -9,6 +9,7 @@ import psutil
 import paho.mqtt.client as mqtt
 from datetime import datetime
 import os
+from os.path import exists
 import time
 
 # https://stackoverflow.com/questions/5568646/usleep-in-python
@@ -266,6 +267,8 @@ class MyHandler(FileSystemEventHandler):
 def read_config(config_file='./config.json'):
     with open('config.json') as config:
         conf = json.load(config)
+        # print('config ')
+        # print(conf)
         return conf
 
 
@@ -273,7 +276,15 @@ def read_config(config_file='./config.json'):
 
 
 def main(args):
-    conf = read_config()
+    # print(os.path.realpath(os.path.dirname(__file__)))
+    config = './config.json'
+    if (len(args) > 1 ):
+        # print('no config-file')
+        config = args[1]
+    if ( not exists(config)):
+        raise Exception("invalid or inexistant config file : " + config)
+    
+    conf = read_config(config)
     client = mqtt.Client()
     w = Watcher(conf, client)
     try:
