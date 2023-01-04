@@ -42,16 +42,15 @@ class Watcher:
         except:
             self.observer.stop()
         self.observer.join()
-        print('observer stopped')
+        # print('observer stopped')
         self.handler.disconnect()
-
-        print('watcher terminated successfully')
+        # print('watcher terminated successfully')
 
     def stop(self):
         self.running = False
         self.client.loop_stop()
         self.observer.stop()
-        print('watcher stopped successfully')
+        # print('watcher stopped successfully')
 
 
 class MyHandler(FileSystemEventHandler):
@@ -62,7 +61,7 @@ class MyHandler(FileSystemEventHandler):
         self.client.on_message = self.on_message
         # setting arena PID
         self.arena_is_running()
-        print('arena pid : ', self.pid)
+        # print('arena pid : ', self.pid)
 
     def run(self):
         self.client.loop_start()
@@ -91,19 +90,19 @@ class MyHandler(FileSystemEventHandler):
         if 'from' in  pload and pload['from'] != 'watchdog':
             if 'start' in pload:
                 # start Arena if not running and send a scan
-                print('Starting')
+                # print('Starting')
                 self.startArena()
                 self.publish_start()
             elif 'restart' in pload:
                 # start Arena if not running with the selected file
                 if 'file' in pload:
                     compo = str(pload['file'])
-                    print("Restarting Arena with " + compo)
+                    # print("Restarting Arena with " + compo)
                     self.restartArena(compo)
                 else:
                     self.publish_restart("No file provided", False)
             elif 'stop' in pload and pload['stop']:
-                print("Stopping Arena...")
+                # print("Stopping Arena...")
                 if self.arena_is_running():
                     self.kill_arena()
                     self.publish_stop()
@@ -214,7 +213,7 @@ class MyHandler(FileSystemEventHandler):
         else:
            data['done'] = False 
            data['result'] = 'error'
-        print("sending restart data : " + json.dumps(data))
+        # print("sending restart data : " + json.dumps(data))
         self.client.publish(self.config['state_topic'], json.dumps(data))
 
     def publish_connect(self):
@@ -245,7 +244,7 @@ class MyHandler(FileSystemEventHandler):
     def on_connect(self, client, userdata, flags, rc):
         self.client.subscribe(self.config['state_topic'])
         self.publish_connect()
-        print("CONNECTED")
+        # print("CONNECTED")
 
     def kill_arena(self):
         os.kill(self.pid, signal.SIGTERM)
